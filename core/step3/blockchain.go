@@ -175,6 +175,8 @@ func (bl *Blockchain) Run(mynetwork Network) {
 				//todo
 				//Read the state of last epoch and tx in this block, then create new state
 				st := NewState(nowepoch.Epoch)
+				nowepoch.AddRecState(*st)
+				nowepoch.State.MergeState(&st.Header.Statemap)
 				mes := NewMessage(MESSAGE_SEND_STATE)
 				mes.Data, _ = st.State2bytes()
 				mynetwork.BroadcastQueue_level2 <- *mes
@@ -187,6 +189,19 @@ func (bl *Blockchain) Run(mynetwork Network) {
 			}
 
 		case st := <-bl.StateQueue:
+			if st.VerifyState() == false || st.Header.Epoch != nowepoch.Epoch {
+				continue
+			}
+			if nowepoch.RecState.Exists(st) {
+				continue
+			} else {
+				nowepoch.AddRecState(st)
+				nowepoch.State.MergeState(&st.Header.Statemap)
+				mes := NewMessage(MESSAGE_SEND_STATE)
+				mes.Data, _ = st.State2bytes()
+				mynetwork.BroadcastQueue_level2 <- *mes
+				continue
+			}
 
 		}
 

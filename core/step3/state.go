@@ -4,17 +4,21 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"reflect"
 )
+
+type StateSlice []State
 
 type State struct {
 	Header    StateHeader
 	Signature []byte
 }
 
+type Statemap map[string]float64
 type StateHeader struct {
 	From     []byte
 	Epoch    uint32
-	Statemap map[string]float64
+	Statemap Statemap
 	Stateid  []byte
 }
 
@@ -27,9 +31,9 @@ func (st *State) SetStateid() {
 	st.Header.Stateid = SHA256(mapbytes)
 }
 
-func (St State) MergeState(St2 *State) {
-	for k, v := range *&St2.Header.Statemap {
-		St.Header.Statemap[k] = v
+func (St Statemap) MergeState(St2 *Statemap) {
+	for k, v := range *St2 {
+		St[k] = v
 	}
 }
 
@@ -44,6 +48,16 @@ func (st *State) VerifyState() bool {
 	headerHash := st.Hash()
 
 	return SignatureVerify(st.Header.From, st.Signature, headerHash)
+}
+
+func (sl StateSlice) Exists(st State) bool {
+
+	for _, v := range sl {
+		if reflect.DeepEqual(v.Header.Stateid, st.Header.Stateid) {
+			return true
+		}
+	}
+	return false
 }
 
 func (st *State) Signvote(keypair *Keypair) []byte {

@@ -38,6 +38,7 @@ func (v *Vote) Signvote(keypair *Keypair) []byte {
 
 	return s
 }
+
 func (vp Votepool) Exists(vote Vote) bool {
 
 	for _, v := range vp {
@@ -47,6 +48,7 @@ func (vp Votepool) Exists(vote Vote) bool {
 	}
 	return false
 }
+
 func (v *Vote) VerifyVote() bool {
 
 	headerHash := v.Hash()
