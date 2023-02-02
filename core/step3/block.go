@@ -2,10 +2,9 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
+	"encoding/gob"
+	"fmt"
 	"reflect"
-
-	"github.com/izqui/functional"
 )
 
 type BlockSlice []Block
@@ -25,6 +24,18 @@ func (bs BlockSlice) Exists(b Block) bool {
 	return false
 }
 
+func (bs BlockSlice) Find(Sign []byte) *Block {
+	l := len(bs)
+	for i := l - 1; i >= 0; i-- {
+
+		bb := bs[i]
+		if reflect.DeepEqual(Sign, bb.Signature) {
+			return &bb
+		}
+	}
+	return nil
+}
+
 func (bs BlockSlice) PreviousBlock() *Block {
 	l := len(bs)
 	if l == 0 {
@@ -34,24 +45,32 @@ func (bs BlockSlice) PreviousBlock() *Block {
 	}
 }
 
+type Votepool []Vote
 type Block struct {
 	*BlockHeader
 	Signature []byte
 	*TransactionSlice
+	Votepool Votepool
 }
 
 type BlockHeader struct {
-	From       []byte
-	PrevBlock  []byte
-	MerkelRoot []byte
-	Timestamp  uint32
-	Nonce      uint32
+	Epoch       uint32
+	Index       uint32
+	Shard_level uint32
+	From        []byte
+	PrevBlock   []byte
+	MerkelRoot  []byte
+	Timestamp   uint32
 }
 
 func NewBlock(previousBlock []byte) Block {
 
 	header := &BlockHeader{PrevBlock: previousBlock}
-	return Block{header, nil, new(TransactionSlice)}
+	return Block{header, nil, new(TransactionSlice), nil}
+}
+
+func (b *Block) AddVote(v *Vote) {
+	b.Votepool = append(b.Votepool, *v)
 }
 
 func (b *Block) AddTransaction(t *Transaction) {
@@ -65,34 +84,20 @@ func (b *Block) Sign(keypair *Keypair) []byte {
 	return s
 }
 
-func (b *Block) VerifyBlock(prefix []byte) bool {
+func (b *Block) VerifyBlock() bool {
 
 	headerHash := b.Hash()
 	merkel := b.GenerateMerkelRoot()
 
-	return reflect.DeepEqual(merkel, b.BlockHeader.MerkelRoot) && CheckProofOfWork(prefix, headerHash) && SignatureVerify(b.BlockHeader.Origin, b.Signature, headerHash)
+	return reflect.DeepEqual(merkel, b.BlockHeader.MerkelRoot) && SignatureVerify(b.BlockHeader.From, b.Signature, headerHash)
 }
 
 func (b *Block) Hash() []byte {
 
-	headerHash, _ := b.BlockHeader.MarshalBinary()
+	headerHash, _ := b.BlockHeader.Blockheader2bytes()
 	return SHA256(headerHash)
 }
 
-func (b *Block) GenerateNonce(prefix []byte) uint32 {
-
-	newB := b
-	for {
-
-		if CheckProofOfWork(prefix, newB.Hash()) {
-			break
-		}
-
-		newB.BlockHeader.Nonce++
-	}
-
-	return newB.BlockHeader.Nonce
-}
 func (b *Block) GenerateMerkelRoot() []byte {
 
 	var merkell func(hashes [][]byte) []byte
@@ -119,70 +124,46 @@ func (b *Block) GenerateMerkelRoot() []byte {
 		}
 	}
 
-	ts := functional.Map(func(t Transaction) []byte { return t.Hash() }, []Transaction(*b.TransactionSlice)).([][]byte)
+	ts := Map(func(t Transaction) []byte { return t.Hash() }, []Transaction(*b.TransactionSlice)).([][]byte)
 	return merkell(ts)
 
 }
-func (b *Block) MarshalBinary() ([]byte, error) {
+func (b *Block) Block2bytes() ([]byte, error) {
 
-	bhb, err := b.BlockHeader.MarshalBinary()
+	buf := bytes.Buffer{}
+	encoder := gob.NewEncoder(&buf)
+	err := encoder.Encode(b)
 	if err != nil {
-		return nil, err
-	}
-	sig := helpers.FitBytesInto(b.Signature, NETWORK_KEY_SIZE)
-	tsb, err := b.TransactionSlice.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
+		fmt.Println(err)
 
-	return append(append(bhb, sig...), tsb...), nil
+	}
+	return buf.Bytes(), nil
+
 }
 
-func (b *Block) UnmarshalBinary(d []byte) error {
-
-	buf := bytes.NewBuffer(d)
-
-	header := new(BlockHeader)
-	err := header.UnmarshalBinary(buf.Next(BLOCK_HEADER_SIZE))
-	if err != nil {
-		return err
-	}
-
-	b.BlockHeader = header
-	b.Signature = helpers.StripByte(buf.Next(NETWORK_KEY_SIZE), 0)
-
-	ts := new(TransactionSlice)
-	err = ts.UnmarshalBinary(buf.Next(helpers.MaxInt))
-	if err != nil {
-		return err
-	}
-
-	b.TransactionSlice = ts
-
+func (b *Block) Bytes2block(data []byte) error {
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	decoder.Decode(&b)
 	return nil
 }
 
-func (h *BlockHeader) MarshalBinary() ([]byte, error) {
+func (h *BlockHeader) Blockheader2bytes() ([]byte, error) {
 
-	buf := new(bytes.Buffer)
+	buf := bytes.Buffer{}
+	encoder := gob.NewEncoder(&buf)
+	err := encoder.Encode(h)
+	if err != nil {
+		fmt.Println(err)
 
-	buf.Write(helpers.FitBytesInto(h.Origin, NETWORK_KEY_SIZE))
-	binary.Write(buf, binary.LittleEndian, h.Timestamp)
-	buf.Write(helpers.FitBytesInto(h.PrevBlock, 32))
-	buf.Write(helpers.FitBytesInto(h.MerkelRoot, 32))
-	binary.Write(buf, binary.LittleEndian, h.Nonce)
-
+	}
 	return buf.Bytes(), nil
 }
 
-func (h *BlockHeader) UnmarshalBinary(d []byte) error {
+func (h *BlockHeader) Bytes2blockheader(data []byte) error {
 
-	buf := bytes.NewBuffer(d)
-	h.Origin = helpers.StripByte(buf.Next(NETWORK_KEY_SIZE), 0)
-	binary.Read(bytes.NewBuffer(buf.Next(4)), binary.LittleEndian, &h.Timestamp)
-	h.PrevBlock = buf.Next(32)
-	h.MerkelRoot = buf.Next(32)
-	binary.Read(bytes.NewBuffer(buf.Next(4)), binary.LittleEndian, &h.Nonce)
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	decoder.Decode(&h)
+	return nil
 
 	return nil
 }

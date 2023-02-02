@@ -12,8 +12,8 @@ import (
 )
 
 const Nodenum = 6
-const firstshardsize = 3
-const secondshardsize = 6
+const Firstshardsize = 3
+const Secondshardsize = 6
 
 type nodelist struct {
 	Nodes  [Nodenum]string
@@ -51,10 +51,10 @@ func main() {
 	var firstShard_leader [Nodenum]int
 	var secondShard_leader [Nodenum]int
 	for i := 0; i < len(step1db.Nodes); i++ {
-		firstShard[i] = int(math.Ceil(float64(i+1) / float64(firstshardsize)))
-		secondShard[i] = int(math.Ceil(float64(i+1) / float64(secondshardsize)))
-		firstShard_leader[i] = (i + 1) % firstshardsize
-		secondShard_leader[i] = (i + 1) % secondshardsize
+		firstShard[i] = int(math.Ceil(float64(i+1) / float64(Firstshardsize)))
+		secondShard[i] = int(math.Ceil(float64(i+1) / float64(Secondshardsize)))
+		firstShard_leader[i] = (i + 1) % Firstshardsize
+		secondShard_leader[i] = (i + 1) % Secondshardsize
 	}
 	nodelists := nodelist_shard{step1db.Nodes, firstShard, secondShard, firstShard_leader, secondShard_leader}
 	sendByte := bytes.Buffer{}

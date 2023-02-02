@@ -4,26 +4,28 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"reflect"
 )
 
 type Vote struct {
 	Header    VoteHeader
 	Signature []byte
 }
+
 type VoteHeader struct {
-	From        []byte
-	Epoch       int
-	Block_num   int
-	Shard_level int
-	Ifagree     bool
+	From       []byte
+	Epoch      uint32
+	Block_sign []byte
+	Ifagree    bool
 }
 
-func NewVote(from []byte, epoch int, block_num int, shard_level int, ifagree bool) *Vote {
+func NewVote(from []byte, epoch uint32, block_sign []byte, ifagree bool) *Vote {
 
-	v := Vote{Header: VoteHeader{From: from, Epoch: epoch, Block_num: block_num, Shard_level: shard_level, Ifagree: ifagree}}
+	v := Vote{Header: VoteHeader{From: from, Epoch: epoch, Block_sign: block_sign, Ifagree: ifagree}}
 
 	return &v
 }
+
 func (v *Vote) Hash() []byte {
 
 	headerBytes, _ := v.Header.VoteHeader2bytes()
@@ -36,8 +38,16 @@ func (v *Vote) Signvote(keypair *Keypair) []byte {
 
 	return s
 }
+func (vp Votepool) Exists(vote Vote) bool {
 
-func (v *Vote) VerifyVote(pow []byte) bool {
+	for _, v := range vp {
+		if reflect.DeepEqual(v.Signature, vote.Signature) {
+			return true
+		}
+	}
+	return false
+}
+func (v *Vote) VerifyVote() bool {
 
 	headerHash := v.Hash()
 

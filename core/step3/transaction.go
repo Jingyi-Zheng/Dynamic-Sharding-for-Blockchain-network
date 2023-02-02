@@ -45,7 +45,7 @@ func (t *Transaction) Sign(keypair *Keypair) []byte {
 	return s
 }
 
-func (t *Transaction) VerifyTransaction(pow []byte) bool {
+func (t *Transaction) VerifyTransaction() bool {
 
 	headerHash := t.Hash()
 	payloadHash := SHA256(t.Payload)

@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-const Nodenum = 6
-
 type nodelist_shard struct {
 	Nodes              [Nodenum]string
 	FirstShard         [Nodenum]int
